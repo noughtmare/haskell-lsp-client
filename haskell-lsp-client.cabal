@@ -1,0 +1,46 @@
+-- This file has been generated from package.yaml by hpack version 0.17.1.
+--
+-- see: https://github.com/sol/hpack
+
+name:           haskell-lsp-client
+version:        0.0.0.1
+synopsis:       A haskell library to build your own haskell-lsp client.
+category:       Language, Protocol, Development
+homepage:       https://github.com/githubuser/lsp-test#readme
+author:         Jaro Reinders
+maintainer:     noughtmare@openmailbox.org
+copyright:      2017 Jaro Reinders
+license:        GPL-2
+license-file:   LICENSE
+build-type:     Simple
+cabal-version:  >= 1.10
+
+extra-source-files:
+    README.md
+
+executable lsp-test
+  main-is: Main.hs
+  hs-source-dirs:
+      src
+  build-depends:
+      base >= 4.7 && < 5
+    , haskell-lsp
+    , aeson
+    , data-default
+    , lens
+    , bytestring
+    , process
+    , stm
+    , attoparsec
+    , containers
+    , transformers
+    , text
+  if os(windows)
+    build-depends:
+        Win32
+  else
+    build-depends:
+        unix
+  other-modules:
+      Compat
+  default-language: Haskell2010

@@ -1,0 +1,39 @@
+name:                haskell-lsp-client
+version:             0.0.0.1
+synopsis:            A haskell library to build your own haskell-lsp client.
+homepage:            https://github.com/githubuser/lsp-test#readme
+license:             GPL-2
+author:              Jaro Reinders
+maintainer:          noughtmare@openmailbox.org
+copyright:           2017 Jaro Reinders
+category:            Language, Protocol, Development
+extra-source-files:
+- README.md
+
+dependencies:
+  - base >= 4.7 && < 5
+  - haskell-lsp
+  - aeson
+  - data-default
+  - lens
+  - bytestring
+  - process
+  - stm
+  - attoparsec
+  - containers
+  - transformers
+  - text
+
+when:
+  - condition: os(windows)
+    then:
+      dependencies:
+        - Win32
+    else:
+      dependencies:
+        - unix
+
+executables:
+  lsp-test:
+    source-dirs:      src
+    main:             Main.hs

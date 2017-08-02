@@ -1,0 +1,14 @@
+resolver: lts-9.0
+
+packages:
+- '.'
+- location:
+    git: git@github.com:alanz/haskell-lsp.git
+    commit: HEAD
+  extra-dep: true
+
+extra-deps: []
+
+flags: {}
+
+extra-package-dbs: []
