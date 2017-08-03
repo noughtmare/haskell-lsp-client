@@ -18,7 +18,7 @@ cabal-version:  >= 1.10
 extra-source-files:
     README.md
 
-executable lsp-test
+executable haskell-lsp-client
   main-is: Main.hs
   hs-source-dirs:
       src

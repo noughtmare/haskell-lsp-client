@@ -1,5 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE RankNTypes #-}
 module Main where
 
 import System.IO
@@ -13,7 +15,6 @@ import Control.Exception (bracket, handle, IOException)
 import Control.Monad
 import Control.Concurrent
 import Compat (getPID)
-import qualified Data.IntSet as S
 import qualified Data.IntMap as M
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.State
@@ -25,57 +26,47 @@ import Text.Read (readMaybe)
 import Control.Arrow ((&&&))
 import Control.Applicative
 import Data.Maybe (fromJust)
-
-data LSPReader = LSPReader
-  { requestVar :: MVar (ClientMessage, MVar (LSP.ResponseMessage Value))
-  , jsonrpc :: Text
-  }
-
-data LSPState = LSPState
-  { currentLspIds :: S.IntSet
-  }
-
-smallestNonMember :: S.IntSet -> Int
-smallestNonMember set = head $ filter (flip S.notMember set) [minBound..]
-
-type LSPM a = ReaderT LSPReader (StateT LSPState IO) a
-
-runLSPM :: LSPM a -> IO a
-runLSPM action = do
-  reqVar <- start
-  (flip evalStateT) (LSPState S.empty) $ runReaderT action $ LSPReader reqVar "2.0"
+import System.Exit (exitFailure)
 
 -- Using concrete types to communicate via MVars, because ghc doesn't support impredicative polymorphism
 -- https://ghc.haskell.org/trac/ghc/wiki/ImpredicativePolymorphism
 -- e.g. `MVar (forall a. a)` is impossible.
 
-type ClientMessage = LSP.RequestMessage LSP.ClientMethod Value Value
-type ClientNotification = LSP.NotificationMessage LSP.ClientMethod Value
-type ServerMessage = LSP.RequestMessage LSP.ServerMethod Value Value
-type ServerNotification = LSP.NotificationMessage LSP.ServerMethod Value
+data ClientCommunication where
+  ClientRequest :: forall params resp. (ToJSON params, ToJSON resp, FromJSON resp)
+                => LSP.ClientMethod
+                -> params
+                -> (MVar (Either LSP.ResponseError resp))
+                -> ClientCommunication
+  ClientNotification :: forall params . (ToJSON params)
+                     => LSP.ClientMethod
+                     -> params
+                     -> ClientCommunication
 
-sendRequest :: (ToJSON req, ToJSON resp, FromJSON resp)
-            => Proxy (LSP.RequestMessage LSP.ClientMethod req resp) 
-            -> LSP.ClientMethod 
-            -> req 
-            -> LSPM (Either LSP.ResponseError resp)
-sendRequest Proxy method params = do
-  resp <- liftIO newEmptyMVar
-  lspId <- do 
-    LSPReader reqVar jsonrpc <- ask
-    lspIdSet <- lift $ gets currentLspIds
-    let lspId = smallestNonMember lspIdSet
-    lift $ put $ LSPState $ S.insert lspId lspIdSet 
-    liftIO $ putMVar reqVar (LSP.RequestMessage jsonrpc (LSP.IdInt lspId) method (toJSON params), resp)
-    return lspId
-  LSP.ResponseMessage _ lspRspId result error <- liftIO $ takeMVar resp
-  when (lspRspId /= LSP.IdRspInt lspId) $ Prelude.error "Mismatched ids"
-  lift $ modify (\(LSPState s) -> LSPState $ S.delete lspId s)
-  return $ case result of 
-    Nothing -> Left $ fromJust $ error
-    Just result -> Right $ fromSuccess $ fromJSON result
-  where
-    fromSuccess (Success a) = a
+
+data Response where
+  Response :: forall resp. (ToJSON resp, FromJSON resp)
+           => Either LSP.ResponseError resp
+           -> Response
+
+sendClientRequest :: forall params resp . (ToJSON params, ToJSON resp, FromJSON resp)
+                  => Proxy (LSP.RequestMessage LSP.ClientMethod params resp)
+                  -> MVar ClientCommunication
+                  -> LSP.ClientMethod
+                  -> params
+                  -> IO (Either LSP.ResponseError resp)
+sendClientRequest Proxy reqVar method params = do
+  respVar <- newEmptyMVar :: IO (MVar (Either LSP.ResponseError resp))
+  putMVar reqVar (ClientRequest method params respVar)
+  takeMVar respVar
+
+sendClientNotification :: forall params . (ToJSON params)
+                        => MVar ClientCommunication
+                        -> LSP.ClientMethod
+                        -> params
+                        -> IO ()
+sendClientNotification reqVar method params =
+  putMVar reqVar (ClientNotification method params)
 
 main :: IO ()
 main = do
@@ -115,33 +106,29 @@ main = do
       initializeParams :: LSP.InitializeParams
       initializeParams = (LSP.InitializeParams (Just pid) Nothing Nothing Nothing caps Nothing)
 
-      initializedNotification :: LSP.InitializedNotification
-      initializedNotification = LSP.NotificationMessage "2.0" LSP.Initialized 
-        (Just LSP.InitializedParams)
+  reqVar <- start
 
-      shutdownRequest :: LSP.ShutdownRequest
-      shutdownRequest = LSP.RequestMessage "2.0" (LSP.IdInt 1) LSP.Shutdown
-        Nothing 
+  sendClientRequest (Proxy :: Proxy LSP.InitializeRequest) reqVar LSP.Initialize initializeParams
+    >>= print
+  sendClientNotification reqVar LSP.Initialized (Just LSP.InitializedParams)
+  sendClientRequest (Proxy :: Proxy LSP.ShutdownRequest) reqVar LSP.Shutdown Nothing
+    >>= print
+  sendClientNotification reqVar LSP.Exit (Just LSP.ExitParams)
 
-      exitNotification :: LSP.ExitNotification
-      exitNotification = LSP.NotificationMessage "2.0" LSP.Exit (Just LSP.ExitNotificationParams)
-  runLSPM $ do
-    sendRequest (Proxy :: Proxy LSP.InitializeRequest) LSP.Initialize initializeParams 
-      >>= liftIO . print
-    sendRequest (Proxy :: Proxy LSP.ShutdownRequest) LSP.Shutdown Nothing 
-      >>= liftIO . print
+data ResponseVar where
+  ResponseVar :: forall resp . FromJSON resp => MVar (Either LSP.ResponseError resp) -> ResponseVar
 
-start :: IO (MVar (ClientMessage, MVar (LSP.ResponseMessage Value)))
-start = handle (\(e :: IOException) -> hPutStrLn stderr (show e) >> undefined) $ do
+start :: IO (MVar ClientCommunication)
+start = handle (\(e :: IOException) -> hPutStrLn stderr (show e) >> exitFailure >> undefined) $ do
   (Just inp, Just out, Just err, pid) <- createProcess (proc "hie" ["--lsp"])
     {std_in = CreatePipe, std_out = CreatePipe, std_err = CreatePipe}
   hSetBuffering inp NoBuffering
   hSetBuffering out NoBuffering
   hSetBuffering err NoBuffering
 
-  req <- newEmptyMVar :: IO (MVar (ClientMessage, MVar (LSP.ResponseMessage Value)))
+  req <- newEmptyMVar :: IO (MVar ClientCommunication)
 
-  requestMap <- newMVar mempty :: IO (MVar (M.IntMap (MVar (LSP.ResponseMessage Value))))
+  requestMap <- newMVar mempty :: IO (MVar (M.IntMap ResponseVar))
 
   -- the receiving thread
   forkIO $ forever $ do
@@ -149,36 +136,48 @@ start = handle (\(e :: IOException) -> hPutStrLn stderr (show e) >> undefined) $
     case lookup "Content-Length" headers >>= readMaybe of
       -- FIXME: Think of some way to recover from malformed headers.
       -- It might just be best to restart the server and try again.
-      Nothing -> error "Malformed LSP headers"
+      Nothing -> error "Couldn't read Content-Length header"
       Just size -> do
         message <- B.hGet out size
 
         let choice :: Alternative f => [f a] -> f a
             choice (a:as) = a <|> choice as
-        
+
         choice [ case decode message :: Maybe (LSP.ResponseMessage Value) of
-                   Just resMsg@(LSP.ResponseMessage _ (LSP.IdRspInt lspId) result error) -> do
-                     (Just resVar) <- modifyMVar requestMap $ return . (M.delete lspId &&& M.lookup lspId)
-                     putMVar resVar resMsg
+                   Just resMsg@(LSP.ResponseMessage _ (LSP.IdRspInt lspId) mayResult mayError) -> do
+                     mayResVar <- modifyMVar requestMap $ return . (M.delete lspId &&& M.lookup lspId)
+                     case mayResVar of
+                       Nothing -> error $ "Server send us an unknown id of type Int" ++ "\n" ++ B.unpack message
+                       Just (ResponseVar (resVar :: FromJSON resp => MVar (Either LSP.ResponseError resp))) ->
+                         case mayResult of
+                           Nothing -> putMVar resVar $ Left $ fromJust mayError
+                           Just result -> putMVar resVar $ Right (fromSuccess $ fromJSON result :: resp)
+                   Just (LSP.ResponseMessage _ (LSP.IdRspString _) _ _) -> error "Server send us an unknown id of type String"
+                   Just (LSP.ResponseMessage _ LSP.IdRspNull _ _) -> error "Server couldn't read our id"
                    _ -> undefined
-               , case decode message :: Maybe ServerMessage of
-                   Just reqMsg@(LSP.RequestMessage _ lspId method params) -> do
-                     -- TODO: Handle server requests
-                     return ()
-                   _ -> undefined
-               , case decode message :: Maybe ServerNotification of
-                   Just notification@(LSP.NotificationMessage _ method params) -> do
-                     -- TODO: Handle server notifications
-                     return ()
-                   _ -> undefined
+               -- , case decode message of
+               --     Just (LSP.RequestMessage _ _ _ _) -> do
+               --       -- TODO: Handle server requests
+               --       return ()
+               --     _ -> undefined
+               -- , case decode message of
+               --     Just (LSP.NotificationMessage _ _ _) -> do
+               --       -- TODO: Handle server notifications
+               --       return ()
+               --     _ -> undefined
                , error "Malformed LSP response message"
                ]
 
   -- the sending thread
   forkIO $ forever $ do
-    (reqMsg@(LSP.RequestMessage _ (LSP.IdInt lspId) _ _), resVar) <- takeMVar req
-    B.hPutStr inp (addHeader (encode reqMsg))
-    modifyMVar_ requestMap $ return . M.insert lspId resVar
+    clientMessage <- takeMVar req
+    case clientMessage of
+       (ClientRequest method (req :: req) (respVar :: (ToJSON resp, FromJSON resp) => MVar (Either LSP.ResponseError resp))) -> do
+          lspId <- head . (\m -> filter (`M.notMember` m) [minBound..]) <$> readMVar requestMap
+          putStrLn $ "We send request with lspId: " ++ show lspId
+          B.hPutStr inp (addHeader (encode (LSP.RequestMessage "2.0" (LSP.IdInt lspId) method req :: LSP.RequestMessage LSP.ClientMethod req resp)))
+          modifyMVar_ requestMap $ return . M.insert lspId (ResponseVar respVar)
+       (ClientNotification method req) -> B.hPutStr inp (addHeader (encode (LSP.NotificationMessage "2.0" method req)))
 
   return req
   where
@@ -196,3 +195,5 @@ start = handle (\(e :: IOException) -> hPutStrLn stderr (show e) >> undefined) $
       , "\r\n"
       , content
       ]
+
+    fromSuccess (Success a) = a
