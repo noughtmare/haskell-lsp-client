@@ -28,10 +28,6 @@ import Control.Applicative
 import Data.Maybe (fromJust)
 import System.Exit (exitFailure)
 
--- Using concrete types to communicate via MVars, because ghc doesn't support impredicative polymorphism
--- https://ghc.haskell.org/trac/ghc/wiki/ImpredicativePolymorphism
--- e.g. `MVar (forall a. a)` is impossible.
-
 data ClientCommunication where
   ClientRequest :: forall params resp. (ToJSON params, ToJSON resp, FromJSON resp)
                 => LSP.ClientMethod
@@ -42,12 +38,6 @@ data ClientCommunication where
                      => LSP.ClientMethod
                      -> params
                      -> ClientCommunication
-
-
-data Response where
-  Response :: forall resp. (ToJSON resp, FromJSON resp)
-           => Either LSP.ResponseError resp
-           -> Response
 
 sendClientRequest :: forall params resp . (ToJSON params, ToJSON resp, FromJSON resp)
                   => Proxy (LSP.RequestMessage LSP.ClientMethod params resp)
@@ -116,7 +106,8 @@ main = do
   sendClientNotification reqVar LSP.Exit (Just LSP.ExitParams)
 
 data ResponseVar where
-  ResponseVar :: forall resp . FromJSON resp => MVar (Either LSP.ResponseError resp) -> ResponseVar
+  ResponseVar :: forall resp . FromJSON resp
+              => MVar (Either LSP.ResponseError resp) -> ResponseVar
 
 start :: IO (MVar ClientCommunication)
 start = handle (\(e :: IOException) -> hPutStrLn stderr (show e) >> exitFailure >> undefined) $ do
@@ -144,27 +135,39 @@ start = handle (\(e :: IOException) -> hPutStrLn stderr (show e) >> exitFailure 
             choice (a:as) = a <|> choice as
 
         choice [ case decode message :: Maybe (LSP.ResponseMessage Value) of
-                   Just resMsg@(LSP.ResponseMessage _ (LSP.IdRspInt lspId) mayResult mayError) -> do
-                     mayResVar <- modifyMVar requestMap $ return . (M.delete lspId &&& M.lookup lspId)
+                   Just (LSP.ResponseMessage _ (LSP.IdRspInt lspId) (Just result) Nothing) -> do
+                     mayResVar <- modifyMVar requestMap $
+                       return . (M.delete lspId &&& M.lookup lspId)
                      case mayResVar of
-                       Nothing -> error $ "Server send us an unknown id of type Int" ++ "\n" ++ B.unpack message
+                       Nothing -> fail $ "Server send us an unknown id of type Int"
                        Just (ResponseVar (resVar :: FromJSON resp => MVar (Either LSP.ResponseError resp))) ->
-                         case mayResult of
-                           Nothing -> putMVar resVar $ Left $ fromJust mayError
-                           Just result -> putMVar resVar $ Right (fromSuccess $ fromJSON result :: resp)
-                   Just (LSP.ResponseMessage _ (LSP.IdRspString _) _ _) -> error "Server send us an unknown id of type String"
-                   Just (LSP.ResponseMessage _ LSP.IdRspNull _ _) -> error "Server couldn't read our id"
+                         putMVar resVar $ Right (fromSuccess $ fromJSON result :: resp)
+
+                   Just (LSP.ResponseMessage _ (LSP.IdRspInt lspId) Nothing (Just rspError)) -> do
+                     mayResVar <- modifyMVar requestMap $
+                       return . (M.delete lspId &&& M.lookup lspId)
+                     case mayResVar of
+                       Nothing -> fail $ "Server send us an unknown id of type Int"
+                       Just (ResponseVar (resVar :: FromJSON resp => MVar (Either LSP.ResponseError resp))) ->
+                         putMVar resVar $ Left rspError
+
+                   Just (LSP.ResponseMessage _ (LSP.IdRspString _) (Just _) Nothing) ->
+                     error "Server send us an unknown id of type String"
+                   Just (LSP.ResponseMessage _ (LSP.IdRspString _) Nothing (Just _)) ->
+                     error "Server send us an unknown id of type String"
+                   Just (LSP.ResponseMessage _ LSP.IdRspNull _ _) ->
+                     error "Server couldn't read our id"
+                   _ -> empty
+               , case decode message :: Maybe (LSP.RequestMessage LSP.ServerMethod Value Value) of
+                   Just (LSP.RequestMessage _ _ _ _) -> do
+                     -- TODO: Handle server requests
+                     return ()
                    _ -> undefined
-               -- , case decode message of
-               --     Just (LSP.RequestMessage _ _ _ _) -> do
-               --       -- TODO: Handle server requests
-               --       return ()
-               --     _ -> undefined
-               -- , case decode message of
-               --     Just (LSP.NotificationMessage _ _ _) -> do
-               --       -- TODO: Handle server notifications
-               --       return ()
-               --     _ -> undefined
+               , case decode message :: Maybe (LSP.NotificationMessage LSP.ServerMethod Value) of
+                   Just (LSP.NotificationMessage _ _ _) -> do
+                     -- TODO: Handle server notifications
+                     return ()
+                   _ -> undefined
                , error "Malformed LSP response message"
                ]
 
