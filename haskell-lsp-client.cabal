@@ -6,7 +6,7 @@ name:           haskell-lsp-client
 version:        0.0.0.1
 synopsis:       A haskell library to build your own haskell-lsp client.
 category:       Language, Protocol, Development
-homepage:       https://github.com/githubuser/lsp-test#readme
+homepage:       https://github.com/noughtmare/haskell-lsp-client#readme
 author:         Jaro Reinders
 maintainer:     noughtmare@openmailbox.org
 copyright:      2017 Jaro Reinders
@@ -18,8 +18,7 @@ cabal-version:  >= 1.10
 extra-source-files:
     README.md
 
-executable haskell-lsp-client
-  main-is: Main.hs
+library
   hs-source-dirs:
       src
   build-depends:
@@ -35,6 +34,20 @@ executable haskell-lsp-client
     , containers
     , transformers
     , text
+  exposed-modules:
+      Client
+  other-modules:
+      Paths_haskell_lsp_client
+  default-language: Haskell2010
+
+executable haskell-lsp-client
+  main-is: Main.hs
+  hs-source-dirs:
+      app
+  build-depends:
+      base >= 4.7 && < 5
+    , haskell-lsp
+    , haskell-lsp-client
   if os(windows)
     build-depends:
         Win32
