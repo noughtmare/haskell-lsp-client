@@ -19,14 +19,13 @@ library
       src
   build-depends:
       base >= 4.7 && < 5
-    , haskell-lsp
+    , haskell-lsp >= 0.2
     , text
     , aeson
     , data-default
     , lens
     , bytestring
     , process
-    , stm
     , attoparsec
     , containers
     , transformers
@@ -35,6 +34,7 @@ library
   other-modules:
       Paths_haskell_lsp_client
   default-language: Haskell2010
+  ghc-options: -Weverything
 
 executable haskell-lsp-client
   main-is: Main.hs
@@ -45,6 +45,8 @@ executable haskell-lsp-client
     , haskell-lsp
     , text
     , haskell-lsp-client
+    , process
+    , lens
   if os(windows)
     build-depends:
         Win32
@@ -54,3 +56,4 @@ executable haskell-lsp-client
   other-modules:
       Compat
   default-language: Haskell2010
+  ghc-options: -Weverything -O2

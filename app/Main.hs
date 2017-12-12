@@ -6,6 +6,8 @@ import qualified Language.Haskell.LSP.TH.ClientCapabilities as LSP
 import Data.Proxy
 import qualified Data.Text.IO as T
 import Control.Concurrent
+import System.Process
+import Control.Lens
 
 import qualified LSP.Client as Client
 import qualified Compat
@@ -48,7 +50,11 @@ main = do
       initializeParams :: LSP.InitializeParams
       initializeParams = LSP.InitializeParams (Just pid) Nothing Nothing Nothing caps Nothing
 
-  reqVar <- Client.start
+
+  (Just inp, Just out, _, _) <- createProcess (proc "hie" ["--lsp"])
+    {std_in = CreatePipe, std_out = CreatePipe, std_err = CreatePipe}
+
+  reqVar <- Client.start (Client.Config inp out testNotificationMessageHandler testRequestMessageHandler)
 
   Client.sendClientRequest (Proxy :: Proxy LSP.InitializeRequest) reqVar LSP.Initialize initializeParams
 --    >>= print
@@ -60,10 +66,28 @@ main = do
 
   Client.sendClientNotification reqVar LSP.TextDocumentDidOpen (Just (LSP.DidOpenTextDocumentParams (LSP.TextDocumentItem (LSP.filePathToUri path) "haskell" 1 txt)))
 
-  threadDelay 100000
+  threadDelay 1000000
 
   Client.sendClientRequest (Proxy :: Proxy LSP.ShutdownRequest) reqVar LSP.Shutdown Nothing
 --    >>= print
   Client.sendClientNotification reqVar LSP.Exit (Just LSP.ExitParams)
 
+testRequestMessageHandler :: Client.RequestMessageHandler
+testRequestMessageHandler = Client.RequestMessageHandler
+  (\m -> emptyResponse m <$ print m)
+  (\m -> emptyResponse m <$ print m)
+  (\m -> emptyResponse m <$ print m)
+  (\m -> emptyResponse m <$ print m)
+  where
+    toRspId (LSP.IdInt i) = LSP.IdRspInt i
+    toRspId (LSP.IdString t) = LSP.IdRspString t
 
+    emptyResponse :: LSP.RequestMessage m req resp -> LSP.ResponseMessage a
+    emptyResponse m = LSP.ResponseMessage (m ^. LSP.jsonrpc) (toRspId (m ^. LSP.id)) Nothing Nothing
+
+testNotificationMessageHandler :: Client.NotificationMessageHandler
+testNotificationMessageHandler = Client.NotificationMessageHandler
+  (T.putStrLn . view (LSP.params . LSP.message))
+  (T.putStrLn . view (LSP.params . LSP.message))
+  (print . view LSP.params)
+  (mapM_ T.putStrLn . (^.. LSP.params . LSP.diagnostics . traverse . LSP.message))
