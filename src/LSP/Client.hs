@@ -36,15 +36,7 @@
 --
 --   * Implement proper exception handling.
 --
---   * More documentation.
---
---   * Handle request messages from the server.
---
---   * Implement proper communication with the LSP-server process.
---
---   * Make all functions total (except the forever loops).
---
---   * Make the language server configurable (the haskell-ide-engine is hard coded now).
+--   * Even more documentation.
 
 module LSP.Client
   ( sendClientRequest
@@ -160,7 +152,8 @@ sendClientNotification reqVar method params =
 -- Example:
 --
 -- @
---    reqVar <- Client.start (Config inp out testHandleNotificationMessage testHandleRequestMessage)
+--    let myConfig = Config inp out testHandleNotificationMessage testHandleRequestMessage
+--    reqVar <- Client.start myConfig
 -- @
 --
 -- Where @inp@ and @out@ are the 'Handle's of the lsp client and
@@ -280,14 +273,10 @@ handleResponseMessage requestMap = \case
 -- Handle request messages
 
 data RequestMessageHandler = RequestMessageHandler
-  { handleWindowShowMessageRequest
-      :: LSP.ShowMessageRequest          -> IO LSP.ShowMessageResponse
-  , handleClientRegisterCapability
-      :: LSP.RegisterCapabilityRequest   -> IO LSP.ErrorResponse
-  , handleClientUnregisterCapability
-      :: LSP.UnregisterCapabilityRequest -> IO LSP.ErrorResponse
-  , handleWorkspaceApplyEdit
-      :: LSP.ApplyWorkspaceEditRequest   -> IO LSP.ApplyWorkspaceEditResponse
+  { handleWindowShowMessageRequest :: LSP.ShowMessageRequest -> IO LSP.ShowMessageResponse
+  , handleClientRegisterCapability :: LSP.RegisterCapabilityRequest -> IO LSP.ErrorResponse
+  , handleClientUnregisterCapability :: LSP.UnregisterCapabilityRequest -> IO LSP.ErrorResponse
+  , handleWorkspaceApplyEdit :: LSP.ApplyWorkspaceEditRequest   -> IO LSP.ApplyWorkspaceEditResponse
   }
 
 handleRequestMessage
