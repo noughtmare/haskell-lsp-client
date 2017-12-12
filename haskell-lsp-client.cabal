@@ -1,14 +1,10 @@
--- This file has been generated from package.yaml by hpack version 0.17.1.
---
--- see: https://github.com/sol/hpack
-
 name:           haskell-lsp-client
-version:        0.0.0.1
-synopsis:       A haskell library to build your own haskell-lsp client.
+version:        0.0.1.0
+synopsis:       A haskell package to build your own Language Server client.
 category:       Language, Protocol, Development
 homepage:       https://github.com/noughtmare/haskell-lsp-client#readme
 author:         Jaro Reinders
-maintainer:     noughtmare@openmailbox.org
+maintainer:     jaro.reinders@gmail.com
 copyright:      2017 Jaro Reinders
 license:        GPL-2
 license-file:   LICENSE
@@ -24,6 +20,7 @@ library
   build-depends:
       base >= 4.7 && < 5
     , haskell-lsp
+    , text
     , aeson
     , data-default
     , lens
@@ -33,9 +30,8 @@ library
     , attoparsec
     , containers
     , transformers
-    , text
   exposed-modules:
-      Client
+      LSP.Client
   other-modules:
       Paths_haskell_lsp_client
   default-language: Haskell2010
@@ -47,6 +43,7 @@ executable haskell-lsp-client
   build-depends:
       base >= 4.7 && < 5
     , haskell-lsp
+    , text
     , haskell-lsp-client
   if os(windows)
     build-depends:

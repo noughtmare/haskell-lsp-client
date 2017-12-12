@@ -20,7 +20,7 @@ getPID = fromIntegral <$> getProcessID
 #else
 
 getPID :: IO Int
-getPID = error "This software is not compatible with your OS."
+getPID = pure 0
 
 #endif
 
