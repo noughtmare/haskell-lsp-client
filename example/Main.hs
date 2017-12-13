@@ -8,12 +8,33 @@ import qualified Data.Text.IO as T
 import Control.Concurrent
 import System.Process
 import Control.Lens
+import System.IO
+import System.Exit
+import System.Environment
+import System.Directory
+import Control.Monad
 
 import qualified LSP.Client as Client
 import qualified Compat
 
 main :: IO ()
 main = do
+  progName <- getProgName
+  args <- getArgs
+
+  when (length args /= 1) $ do
+    hPutStrLn stderr ("This program expects one argument: " ++ progName ++ " FILEPATH")
+    exitFailure
+
+  let [path] = args
+
+  exists <- doesFileExist path
+  when (not exists) $ do
+    hPutStrLn stderr ("File does not exist: " ++ path)
+    exitFailure
+
+  file <- canonicalizePath path
+  
   pid <- Compat.getPID
 
   let caps = LSP.ClientCapabilities (Just workspaceCaps) (Just textDocumentCaps) Nothing
@@ -60,11 +81,9 @@ main = do
 --    >>= print
   Client.sendClientNotification reqVar LSP.Initialized (Just LSP.InitializedParams)
 
-  let path = "/home/jaro/haskell/haskell-lsp-client/src/LSP/Client.hs"
+  txt <- T.readFile file
 
-  txt <- T.readFile path
-
-  Client.sendClientNotification reqVar LSP.TextDocumentDidOpen (Just (LSP.DidOpenTextDocumentParams (LSP.TextDocumentItem (LSP.filePathToUri path) "haskell" 1 txt)))
+  Client.sendClientNotification reqVar LSP.TextDocumentDidOpen (Just (LSP.DidOpenTextDocumentParams (LSP.TextDocumentItem (LSP.filePathToUri file) "haskell" 1 txt)))
 
   threadDelay 1000000
 
