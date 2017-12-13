@@ -1,4 +1,6 @@
 # haskell-lsp-client
+![](https://img.shields.io/hackage/v/haskell-lsp-client.svg)
+![]( 	https://img.shields.io/hackage-deps/v/haskell-lsp-client.svg)
 
 This package is intended for developers of text editors who want to make their text editor
 compatible with the [Language Server Protocol](https://github.com/Microsoft/language-server-protocol/blob/master/protocol.md).
