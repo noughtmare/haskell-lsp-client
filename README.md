@@ -7,13 +7,13 @@ I have developed this package with plans to integrate it in the [Yi editor](http
 
 ## The example client
 
-Contained in this repository is an example clinet. This example client just runs the [Haskell IDE Engine](https://github.com/alanz/haskell-ide-engine/)
-and opens the file specified on the command line. Then it waits a second to let `hie` check the
+Contained in this repository is an example client. This example client just runs the [Haskell IDE Engine](https://github.com/alanz/haskell-ide-engine/)
+and opens the file specified on the command line. Then it waits a second to let HIE check the
 file for errors and such.
 
 To run the example:
 
-1. Download and install the Haskell IDE Engine.
+1. Download and install the Haskell IDE Engine. (make sure `hie` is on your PATH)
 2. `git clone https://github.com/noughtmare/haskell-lsp-client`
 3. `cd haskell-lsp-client`
 4. `stack build`
