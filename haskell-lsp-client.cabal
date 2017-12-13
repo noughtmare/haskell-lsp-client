@@ -22,13 +22,10 @@ library
     , haskell-lsp >= 0.2
     , text
     , aeson
-    , data-default
     , lens
     , bytestring
     , process
-    , attoparsec
     , containers
-    , transformers
   exposed-modules:
       LSP.Client
   default-language: Haskell2010
