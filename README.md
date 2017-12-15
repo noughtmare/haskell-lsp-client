@@ -9,8 +9,7 @@ I have developed this package with plans to integrate it in the [Yi editor](http
 ## The example client
 
 Contained in this repository is an example client. This example client just runs the [Haskell IDE Engine](https://github.com/alanz/haskell-ide-engine/)
-and opens the file specified on the command line. Then it waits a second to let HIE check the
-file for errors and such.
+and opens the file specified on the command line. Then it asks the language server for all symbols in the document and prints the result it gets.
 
 To run the example:
 
@@ -22,4 +21,4 @@ To run the example:
 
 On my system it shows something about a capability registration request and that a certain hoogle
 database is used. You can replace example/Main.hs with any haskell file you would like to check.
-It reports ghc errors and hlint suggestions.
+It reports ghc errors and hlint suggestions and it shows the symbol list.

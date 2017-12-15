@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE LambdaCase #-}
 module Main where
 
 import qualified Language.Haskell.LSP.TH.DataTypesJSON as LSP
@@ -83,9 +84,14 @@ main = do
 
   txt <- T.readFile file
 
-  Client.sendClientNotification reqVar LSP.TextDocumentDidOpen (Just (LSP.DidOpenTextDocumentParams (LSP.TextDocumentItem (LSP.filePathToUri file) "haskell" 1 txt)))
+  let uri = LSP.filePathToUri file
 
-  threadDelay 1000000
+  Client.sendClientNotification reqVar LSP.TextDocumentDidOpen (Just (LSP.DidOpenTextDocumentParams (LSP.TextDocumentItem uri "haskell" 1 txt)))
+
+  Client.sendClientRequest (Proxy :: Proxy LSP.DocumentSymbolRequest) reqVar LSP.TextDocumentDocumentSymbol (LSP.DocumentSymbolParams (LSP.TextDocumentIdentifier uri))
+    >>= \case
+      Just (Right as) -> mapM_ T.putStrLn (as ^.. traverse . LSP.name)
+      _ -> putStrLn "Server couldn't give us document symbol information"
 
   Client.sendClientRequest (Proxy :: Proxy LSP.ShutdownRequest) reqVar LSP.Shutdown Nothing
 --    >>= print
