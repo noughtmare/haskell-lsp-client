@@ -1,11 +1,7 @@
-resolver: lts-9.18
+resolver: nightly-2017-12-29
 
 packages:
 - '.'
-- location:
-    git: git@github.com:alanz/haskell-lsp.git
-    commit: HEAD
-  extra-dep: true
 
 extra-deps: []
 

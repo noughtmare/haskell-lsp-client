@@ -68,15 +68,6 @@ import qualified Data.Text.IO as T
 import Control.Exception (SomeException)
 
 --------------------------------------------------------------------------------
--- These should be added to Language.Haskell.LSP.TH.DataTypesJSON
-
-instance Traversable LSP.List where
-  traverse f (LSP.List l) = LSP.List <$> traverse f l
-
-instance Foldable LSP.List where
-  foldMap f (LSP.List l) = foldMap f l
-
---------------------------------------------------------------------------------
 -- The types
 
 data ClientMessage

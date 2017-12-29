@@ -1,5 +1,5 @@
 name:           haskell-lsp-client
-version:        1.0.0.0
+version:        1.0.0.1
 synopsis:       A haskell package to build your own Language Server client.
 category:       Language, Protocol, Development
 homepage:       https://github.com/noughtmare/haskell-lsp-client#readme
@@ -24,7 +24,7 @@ library
       src
   build-depends:
       base >= 4.7 && < 5
-    , haskell-lsp >= 0.2
+    , haskell-lsp >= 0.2.0.1
     , text
     , aeson
     , lens
@@ -34,7 +34,8 @@ library
   exposed-modules:
       LSP.Client
   default-language: Haskell2010
-  ghc-options: -Weverything
+  ghc-options:
+    -- -Weverything
 
 executable example-client
   main-is: Main.hs
@@ -57,4 +58,5 @@ executable example-client
   other-modules:
       Compat
   default-language: Haskell2010
-  ghc-options: -Weverything
+  ghc-options:
+   -- -Weverything
