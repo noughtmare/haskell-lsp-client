@@ -24,7 +24,7 @@ library
       src
   build-depends:
       base >= 4.7 && < 5
-    , haskell-lsp >= 0.2.0.1
+    , haskell-lsp-types >= 0.2.1.0
     , text
     , aeson
     , lens
@@ -43,7 +43,7 @@ executable example-client
       example
   build-depends:
       base >= 4.7 && < 5
-    , haskell-lsp
+    , haskell-lsp-types
     , text
     , haskell-lsp-client
     , process

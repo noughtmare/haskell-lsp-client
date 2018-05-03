@@ -3,7 +3,8 @@ resolver: nightly-2017-12-29
 packages:
 - '.'
 
-extra-deps: []
+extra-deps:
+  - haskell-lsp-types-0.2.1.0
 
 flags: {}
 
