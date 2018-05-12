@@ -30,12 +30,12 @@ main = do
   let [path] = args
 
   exists <- doesFileExist path
-  when (not exists) $ do
+  unless exists $ do
     hPutStrLn stderr ("File does not exist: " ++ path)
     exitFailure
 
   file <- canonicalizePath path
-  
+
   pid <- Compat.getPID
 
   let caps = LSP.ClientCapabilities (Just workspaceCaps) (Just textDocumentCaps) Nothing
@@ -79,7 +79,7 @@ main = do
   reqVar <- Client.start (Client.Config inp out testNotificationMessageHandler testRequestMessageHandler)
 
   Client.sendClientRequest (Proxy :: Proxy LSP.InitializeRequest) reqVar LSP.Initialize initializeParams
---    >>= print
+
   Client.sendClientNotification reqVar LSP.Initialized (Just LSP.InitializedParams)
 
   txt <- T.readFile file
@@ -88,13 +88,13 @@ main = do
 
   Client.sendClientNotification reqVar LSP.TextDocumentDidOpen (Just (LSP.DidOpenTextDocumentParams (LSP.TextDocumentItem uri "haskell" 1 txt)))
 
+
   Client.sendClientRequest (Proxy :: Proxy LSP.DocumentSymbolRequest) reqVar LSP.TextDocumentDocumentSymbol (LSP.DocumentSymbolParams (LSP.TextDocumentIdentifier uri))
     >>= \case
       Just (Right as) -> mapM_ T.putStrLn (as ^.. traverse . LSP.name)
       _ -> putStrLn "Server couldn't give us document symbol information"
 
   Client.sendClientRequest (Proxy :: Proxy LSP.ShutdownRequest) reqVar LSP.Shutdown Nothing
---    >>= print
   Client.sendClientNotification reqVar LSP.Exit (Just LSP.ExitParams)
 
 testRequestMessageHandler :: Client.RequestMessageHandler

@@ -56,7 +56,7 @@ import qualified Language.Haskell.LSP.TH.DataTypesJSON as LSP
 import Data.Aeson
 import qualified Data.ByteString.Lazy.Char8 as B
 import System.Process
-import Control.Exception (handle, IOException)
+import Control.Exception (handle, IOException, SomeException)
 import Control.Monad (forever)
 import Control.Concurrent
 import qualified Data.IntMap as M
@@ -65,7 +65,7 @@ import Text.Read (readMaybe)
 import Control.Arrow ((&&&))
 import System.Exit (exitFailure)
 import qualified Data.Text.IO as T
-import Control.Exception (SomeException)
+
 
 --------------------------------------------------------------------------------
 -- The types
@@ -178,8 +178,11 @@ start (Config inp out handleNotification handleRequest) =
 
     requestMap <- newMVar mempty :: IO (MVar (M.IntMap ResponseVar))
 
+    -- keeps track of which request ID should be used next
+    lspCount <- newMVar 0 :: IO (MVar Int)
+
     forkIO (receiving handleNotification handleRequest inp out requestMap)
-    forkIO (sending inp req requestMap)
+    forkIO (sending inp req requestMap lspCount)
 
     return req
 
@@ -224,16 +227,17 @@ receiving handleNotification handleRequest inp out requestMap =
         then return []
         else ((name,drop 2 val) :) <$> getHeaders h
 
-sending :: Handle -> MVar ClientMessage -> MVar (M.IntMap ResponseVar) -> IO ()
-sending inp req requestMap = forever $ handle (\(e :: SomeException) -> hPrint stderr e) $ do
+sending :: Handle -> MVar ClientMessage -> MVar (M.IntMap ResponseVar) -> MVar Int -> IO ()
+sending inp req requestMap lspCount = forever $ handle (\(e :: SomeException) -> hPrint stderr e) $ do
     clientMessage <- takeMVar req
     case clientMessage of
       (ClientRequest method (req :: req) (respVar :: MVar (Maybe (Either LSP.ResponseError resp)))) -> do
-         lspId <- head . (\m -> filter (`M.notMember` m) [minBound..]) <$> readMVar requestMap
+         lspId <- readMVar lspCount
          B.hPutStr inp $ addHeader $ encode
            (LSP.RequestMessage "2.0" (LSP.IdInt lspId) method req
              :: LSP.RequestMessage LSP.ClientMethod req resp)
          modifyMVar_ requestMap $ return . M.insert lspId (ResponseVar respVar)
+         modifyMVar_ lspCount $ return . (+ 1)
 
       (ClientNotification method req) ->
         B.hPutStr inp (addHeader (encode (LSP.NotificationMessage "2.0" method req)))
@@ -395,4 +399,3 @@ handleNotificationMessage NotificationMessageHandler {..} m =
         _ -> fail "Malformed parameters of textDocument/publishDiagnostics notification."
 
     _ -> fail $ "unknown method: " ++ show (m ^. LSP.method)
-
