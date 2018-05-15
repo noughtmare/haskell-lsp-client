@@ -36,11 +36,12 @@
 --
 --   * Implement proper exception handling.
 --
-module LSP.Client
+module Language.Haskell.LSP.Client
   (
   -- * Initialization
     start
   , Config (..)
+  , ClientMessage
   -- * Receiving
   , RequestMessageHandler (..)
   , NotificationMessageHandler (..)

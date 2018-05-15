@@ -4,6 +4,7 @@ module Main where
 
 import qualified Language.Haskell.LSP.TH.DataTypesJSON as LSP
 import qualified Language.Haskell.LSP.TH.ClientCapabilities as LSP
+import qualified Language.Haskell.LSP.Client as Client
 import Data.Proxy
 import qualified Data.Text.IO as T
 import Control.Concurrent
@@ -15,7 +16,6 @@ import System.Environment
 import System.Directory
 import Control.Monad
 
-import qualified LSP.Client as Client
 import qualified Compat
 
 main :: IO ()
@@ -73,7 +73,7 @@ main = do
       initializeParams = LSP.InitializeParams (Just pid) Nothing Nothing Nothing caps Nothing
 
 
-  (Just inp, Just out, _, _) <- createProcess (proc "hie" ["--lsp"])
+  (Just inp, Just out, _, _) <- createProcess (proc "hie" ["--lsp", "-l", "/tmp/hie.log", "--debug"])
     {std_in = CreatePipe, std_out = CreatePipe, std_err = CreatePipe}
 
   reqVar <- Client.start (Client.Config inp out testNotificationMessageHandler testRequestMessageHandler)
@@ -88,6 +88,13 @@ main = do
 
   Client.sendClientNotification reqVar LSP.TextDocumentDidOpen (Just (LSP.DidOpenTextDocumentParams (LSP.TextDocumentItem uri "haskell" 1 txt)))
 
+  Client.sendClientRequest
+    (Proxy :: Proxy LSP.DefinitionRequest)
+    reqVar
+    LSP.TextDocumentDefinition
+    (LSP.TextDocumentPositionParams (LSP.TextDocumentIdentifier uri) (LSP.Position 88 36)) >>= \case
+      Just (Right pos) -> print pos
+      _ -> putStrLn "Server couldn't give us defnition position"
 
   Client.sendClientRequest (Proxy :: Proxy LSP.DocumentSymbolRequest) reqVar LSP.TextDocumentDocumentSymbol (LSP.DocumentSymbolParams (LSP.TextDocumentIdentifier uri))
     >>= \case
