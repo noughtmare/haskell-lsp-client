@@ -104,6 +104,8 @@ main = do
   Client.sendClientRequest client (Proxy :: Proxy LSP.ShutdownRequest) LSP.Shutdown Nothing
   Client.sendClientNotification client LSP.Exit (Just LSP.ExitParams)
 
+  Client.stop client
+
 testRequestMessageHandler :: Client.RequestMessageHandler
 testRequestMessageHandler = Client.RequestMessageHandler
   (\m -> emptyResponse m <$ print m)

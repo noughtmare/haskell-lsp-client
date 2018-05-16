@@ -40,6 +40,7 @@ module Language.Haskell.LSP.Client
   (
   -- * Initialization
     start
+  , stop
   , Config (..)
   , Client
   -- * Receiving
@@ -60,6 +61,7 @@ import System.Process
 import Control.Exception (handle, IOException, SomeException)
 import Control.Monad (forever)
 import Control.Concurrent
+import Control.Exception.Base
 import qualified Data.IntMap as M
 import Data.Proxy (Proxy (Proxy))
 import Text.Read (readMaybe)
@@ -161,20 +163,20 @@ sendClientNotification client method params =
   putMVar (reqVar client) (ClientNotification method params)
 
 --------------------------------------------------------------------------------
--- Starting the language server
+-- Starting and stopping the language server
 
 -- | Start the language server.
 --
 -- Example:
 --
 -- @
--- reqVar <- Client.start myConfig
+-- client <- Client.start myConfig
 -- @
 --
 -- Where @inp@ and @out@ are the 'Handle's of the lsp client and
 -- @testHandleNotification@ and @testHandleRequestMessage@ are 'NotificationMessageHandler' and
 -- 'RequestMessageHandler' respectively.
--- @reqVar@ can be passed to the 'sendClientRequest' and 'sendClientNotification' functions.
+-- @client@ can be passed to the 'sendClientRequest' and 'sendClientNotification' functions.
 start :: Config -> IO Client
 start (Config inp out handleNotification handleRequest) =
   handle (\(e :: IOException) -> hPrint stderr e >> exitFailure >> undefined) $ do
@@ -190,6 +192,17 @@ start (Config inp out handleNotification handleRequest) =
 
     return (Client reqVar receiveThread sendThread)
 
+-- | Stop the language server.
+--
+-- Example:
+--
+-- @
+-- Client.stop client
+-- @
+--
+-- Where @client@ is the value received from @start@.
+-- After this is called the 'sendClientRequest' and 'sendClientNotification' functions
+-- will not do anything.
 stop :: Client -> IO ()
 stop (Client _ receiveThread sendThread) = do
   killThread receiveThread
@@ -202,7 +215,7 @@ receiving :: NotificationMessageHandler
           -> MVar (M.IntMap ResponseVar)
           -> IO ()
 receiving handleNotification handleRequest inp out requestMap =
-  forever $ handle (\(e :: SomeException) -> hPrint stderr e) $ do
+  forever $ handle handleException $ do
     headers <- getHeaders out
     case lookup "Content-Length" headers >>= readMaybe of
       Nothing -> fail "Couldn't read Content-Length header"
@@ -241,7 +254,7 @@ sending inp req requestMap = do
   -- keeps track of which request ID should be used next
   lspCount <- newMVar 0 :: IO (MVar Int)
   
-  forever $ handle (\(e :: SomeException) -> hPrint stderr e) $ do
+  forever $ handle handleException $ do
     clientMessage <- takeMVar req
     case clientMessage of
       (ClientRequest method (req :: req) (respVar :: MVar (Maybe (Either LSP.ResponseError resp)))) -> do
@@ -254,6 +267,12 @@ sending inp req requestMap = do
 
       (ClientNotification method req) ->
         B.hPutStr inp (addHeader (encode (LSP.NotificationMessage "2.0" method req)))
+
+handleException :: SomeException -> IO ()
+-- exceptionHandler ThreadKilled = return ()
+handleException e = case asyncExceptionFromException e of
+  Just ThreadKilled -> return ()
+  _ -> hPrint stderr e
 
 addHeader :: B.ByteString -> B.ByteString
 addHeader content = B.concat
