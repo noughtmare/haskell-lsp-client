@@ -76,33 +76,33 @@ main = do
   (Just inp, Just out, _, _) <- createProcess (proc "hie" ["--lsp", "-l", "/tmp/hie.log", "--debug"])
     {std_in = CreatePipe, std_out = CreatePipe, std_err = CreatePipe}
 
-  reqVar <- Client.start (Client.Config inp out testNotificationMessageHandler testRequestMessageHandler)
+  client <- Client.start (Client.Config inp out testNotificationMessageHandler testRequestMessageHandler)
 
-  Client.sendClientRequest (Proxy :: Proxy LSP.InitializeRequest) reqVar LSP.Initialize initializeParams
+  Client.sendClientRequest client (Proxy :: Proxy LSP.InitializeRequest) LSP.Initialize initializeParams
 
-  Client.sendClientNotification reqVar LSP.Initialized (Just LSP.InitializedParams)
+  Client.sendClientNotification client LSP.Initialized (Just LSP.InitializedParams)
 
   txt <- T.readFile file
 
   let uri = LSP.filePathToUri file
 
-  Client.sendClientNotification reqVar LSP.TextDocumentDidOpen (Just (LSP.DidOpenTextDocumentParams (LSP.TextDocumentItem uri "haskell" 1 txt)))
+  Client.sendClientNotification client LSP.TextDocumentDidOpen (Just (LSP.DidOpenTextDocumentParams (LSP.TextDocumentItem uri "haskell" 1 txt)))
 
   Client.sendClientRequest
+    client
     (Proxy :: Proxy LSP.DefinitionRequest)
-    reqVar
     LSP.TextDocumentDefinition
     (LSP.TextDocumentPositionParams (LSP.TextDocumentIdentifier uri) (LSP.Position 88 36)) >>= \case
       Just (Right pos) -> print pos
       _ -> putStrLn "Server couldn't give us defnition position"
 
-  Client.sendClientRequest (Proxy :: Proxy LSP.DocumentSymbolRequest) reqVar LSP.TextDocumentDocumentSymbol (LSP.DocumentSymbolParams (LSP.TextDocumentIdentifier uri))
+  Client.sendClientRequest client (Proxy :: Proxy LSP.DocumentSymbolRequest) LSP.TextDocumentDocumentSymbol (LSP.DocumentSymbolParams (LSP.TextDocumentIdentifier uri))
     >>= \case
       Just (Right as) -> mapM_ T.putStrLn (as ^.. traverse . LSP.name)
       _ -> putStrLn "Server couldn't give us document symbol information"
 
-  Client.sendClientRequest (Proxy :: Proxy LSP.ShutdownRequest) reqVar LSP.Shutdown Nothing
-  Client.sendClientNotification reqVar LSP.Exit (Just LSP.ExitParams)
+  Client.sendClientRequest client (Proxy :: Proxy LSP.ShutdownRequest) LSP.Shutdown Nothing
+  Client.sendClientNotification client LSP.Exit (Just LSP.ExitParams)
 
 testRequestMessageHandler :: Client.RequestMessageHandler
 testRequestMessageHandler = Client.RequestMessageHandler
