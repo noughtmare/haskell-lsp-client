@@ -269,9 +269,8 @@ sending inp req requestMap = do
         B.hPutStr inp (addHeader (encode (LSP.NotificationMessage "2.0" method req)))
 
 handleException :: SomeException -> IO ()
--- exceptionHandler ThreadKilled = return ()
 handleException e = case asyncExceptionFromException e of
-  Just ThreadKilled -> return ()
+  Just ThreadKilled -> throw e
   _ -> hPrint stderr e
 
 addHeader :: B.ByteString -> B.ByteString
