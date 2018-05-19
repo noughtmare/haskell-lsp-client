@@ -36,7 +36,7 @@
 --
 --   * Implement proper exception handling.
 --
-module Language.Haskell.LSP.Client
+module LSP.Client
   (
   -- * Initialization
     start

@@ -4,7 +4,7 @@ module Main where
 
 import qualified Language.Haskell.LSP.TH.DataTypesJSON as LSP
 import qualified Language.Haskell.LSP.TH.ClientCapabilities as LSP
-import qualified Language.Haskell.LSP.Client as Client
+import qualified LSP.Client as Client
 import Data.Proxy
 import qualified Data.Text.IO as T
 import Control.Concurrent
