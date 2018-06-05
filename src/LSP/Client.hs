@@ -178,19 +178,18 @@ sendClientNotification client method params =
 -- 'RequestMessageHandler' respectively.
 -- @client@ can be passed to the 'sendClientRequest' and 'sendClientNotification' functions.
 start :: Config -> IO Client
-start (Config inp out handleNotification handleRequest) =
-  handle (\(e :: IOException) -> hPrint stderr e >> exitFailure >> undefined) $ do
-    hSetBuffering inp NoBuffering
-    hSetBuffering out NoBuffering
+start (Config inp out handleNotification handleRequest) = do
+  hSetBuffering inp NoBuffering
+  hSetBuffering out NoBuffering
 
-    reqVar <- newEmptyMVar :: IO (MVar ClientMessage)
+  reqVar <- newEmptyMVar :: IO (MVar ClientMessage)
 
-    requestMap <- newMVar mempty :: IO (MVar (M.IntMap ResponseVar))
+  requestMap <- newMVar mempty :: IO (MVar (M.IntMap ResponseVar))
 
-    receiveThread <- forkIO (receiving handleNotification handleRequest inp out requestMap)
-    sendThread <- forkIO (sending inp reqVar requestMap)
+  receiveThread <- forkIO (receiving handleNotification handleRequest inp out requestMap)
+  sendThread <- forkIO (sending inp reqVar requestMap)
 
-    return (Client reqVar receiveThread sendThread)
+  return (Client reqVar receiveThread sendThread)
 
 -- | Stop the language server.
 --
