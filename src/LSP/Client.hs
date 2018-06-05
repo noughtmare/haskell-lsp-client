@@ -201,8 +201,9 @@ start (Config inp out handleNotification handleRequest) =
 -- @
 --
 -- Where @client@ is the value received from @start@.
--- After this is called the 'sendClientRequest' and 'sendClientNotification' functions
--- will not do anything.
+-- After this is called the 'sendClientNotification' function will not do
+-- anything. Calling the 'sendClientRequest' after this will cause the
+-- thread to be blocked indefinitely in an MVar operation.
 stop :: Client -> IO ()
 stop (Client _ receiveThread sendThread) = do
   killThread receiveThread
@@ -221,6 +222,10 @@ receiving handleNotification handleRequest inp out requestMap =
       Nothing -> fail "Couldn't read Content-Length header"
       Just size -> do
         message <- B.hGet out size
+
+        -- B.hPut stdout "----->"
+        -- B.hPut stdout message
+        -- B.hPut stdout "\n"
 
         -- Requestmessages require id and method fields
         --   so it should be the first in this list
@@ -253,20 +258,27 @@ sending :: Handle -> MVar ClientMessage -> MVar (M.IntMap ResponseVar) -> IO ()
 sending inp req requestMap = do
   -- keeps track of which request ID should be used next
   lspCount <- newMVar 0 :: IO (MVar Int)
-  
+
   forever $ handle handleException $ do
     clientMessage <- takeMVar req
     case clientMessage of
       (ClientRequest method (req :: req) (respVar :: MVar (Maybe (Either LSP.ResponseError resp)))) -> do
          lspId <- readMVar lspCount
-         B.hPutStr inp $ addHeader $ encode
+         B.hPut inp $ addHeader $ encode
            (LSP.RequestMessage "2.0" (LSP.IdInt lspId) method req
              :: LSP.RequestMessage LSP.ClientMethod req resp)
+
+         -- B.hPut stdout "<----- "
+         -- B.hPut stdout $ encode
+         --   (LSP.RequestMessage "2.0" (LSP.IdInt lspId) method req
+         --     :: LSP.RequestMessage LSP.ClientMethod req resp)
+         -- B.hPut stdout "\n"
+
          modifyMVar_ requestMap $ return . M.insert lspId (ResponseVar respVar)
          modifyMVar_ lspCount $ return . (+ 1)
 
       (ClientNotification method req) ->
-        B.hPutStr inp (addHeader (encode (LSP.NotificationMessage "2.0" method req)))
+        B.hPut inp (addHeader (encode (LSP.NotificationMessage "2.0" method req)))
 
 handleException :: SomeException -> IO ()
 handleException e = case asyncExceptionFromException e of
@@ -376,7 +388,7 @@ handleRequestMessage inp RequestMessageHandler {..} m = do
 
     _ -> fail "Wrong request method."
 
-  B.hPutStr inp $ addHeader resp
+  B.hPut inp $ addHeader resp
 
 --------------------------------------------------------------------------------
 -- Handle notification messages

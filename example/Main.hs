@@ -88,22 +88,49 @@ main = do
 
   Client.sendClientNotification client LSP.TextDocumentDidOpen (Just (LSP.DidOpenTextDocumentParams (LSP.TextDocumentItem uri "haskell" 1 txt)))
 
+  putStrLn "Sending completion request..."
   Client.sendClientRequest
     client
-    (Proxy :: Proxy LSP.DefinitionRequest)
-    LSP.TextDocumentDefinition
-    (LSP.TextDocumentPositionParams (LSP.TextDocumentIdentifier uri) (LSP.Position 88 36)) >>= \case
+    (Proxy :: Proxy LSP.CompletionRequest)
+    LSP.TextDocumentCompletion
+    (LSP.TextDocumentPositionParams (LSP.TextDocumentIdentifier uri) (LSP.Position 22 18)) >>= \case
       Just (Right pos) -> print pos
-      _ -> putStrLn "Server couldn't give us defnition position"
+      Just (Left e) -> putStr "error: " *> print e
+      _ -> putStrLn "Server couldn't give us completion information"
 
+  putStrLn "Sending hover request..."
+  Client.sendClientRequest
+    client
+    (Proxy :: Proxy LSP.HoverRequest)
+    LSP.TextDocumentHover
+    (LSP.TextDocumentPositionParams (LSP.TextDocumentIdentifier uri) (LSP.Position 0 0)) >>= \case
+      Just (Right pos) -> print pos
+      Just (Left e) -> putStr "error: " *> print e
+      _ -> putStrLn "Server couldn't give us hover information"
+
+  putStrLn "Sending documenthighlight request..."
+  Client.sendClientRequest
+    client
+    (Proxy :: Proxy LSP.DocumentHighlightRequest)
+    LSP.TextDocumentDocumentHighlight
+    (LSP.TextDocumentPositionParams (LSP.TextDocumentIdentifier uri) (LSP.Position 0 0)) >>= \case
+      Just (Right pos) -> print pos
+      Just (Left e) -> putStr "error: " *> print e
+      _ -> putStrLn "Server couldn't give us document highlight information"
+
+  putStrLn "Sending document symbol request..."
   Client.sendClientRequest client (Proxy :: Proxy LSP.DocumentSymbolRequest) LSP.TextDocumentDocumentSymbol (LSP.DocumentSymbolParams (LSP.TextDocumentIdentifier uri))
     >>= \case
-      Just (Right as) -> mapM_ T.putStrLn (as ^.. traverse . LSP.name)
+      Just (Right as) -> (\x -> if null x then putStrLn "No symbols" else mapM_ T.putStrLn x) (as ^.. traverse . LSP.name)
+      Just (Left e) -> putStr "error: " *> print e
       _ -> putStrLn "Server couldn't give us document symbol information"
 
+  putStrLn "Sending shutdownrequest..."
   Client.sendClientRequest client (Proxy :: Proxy LSP.ShutdownRequest) LSP.Shutdown Nothing
+  putStrLn "Sending exit notification"
   Client.sendClientNotification client LSP.Exit (Just LSP.ExitParams)
 
+  putStrLn "Stopping"
   Client.stop client
 
 testRequestMessageHandler :: Client.RequestMessageHandler
